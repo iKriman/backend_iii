@@ -1,0 +1,6 @@
+services:
+  backendiii-semana2:
+    build: .
+    container_name: backendiii-semana2
+    volumes:
+      - ./output:/app/output

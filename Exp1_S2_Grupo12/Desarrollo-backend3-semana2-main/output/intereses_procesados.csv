@@ -1,0 +1,7 @@
+cuenta_id;nombre;saldo;edad;tipo;interes_calculado
+102;Jane Smith;8000;25;prestamo;160.00
+105;Charlie Green;7000;35;hipoteca;140.00
+108;Steve Rogers;10000;100;ahorro;500.00
+101;John Doe;5000;30;ahorro;250.00
+106;John Doe;5000;30;ahorro;250.00
+107;Diana Prince;15000;40;prestamo;300.00

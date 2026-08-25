@@ -1,0 +1,9 @@
+cuenta_id;fecha;transaccion;monto;descripcion
+103;2024-07-10;deposito;2000;
+107;2024-12-25;deposito;0;Ingreso navideño
+101;2024-03-15;retiro;-500;Retiro parcial
+104;2024-09-05;compra;-100;Compra en tienda
+106;2024-11-20;deposito;3000;Ingreso mensual
+101;2024-01-01;deposito;1000;Ingreso mensual
+102;2024-05-22;deposito;1500;Ingreso mensual
+108;2024-12-31;deposito;2000;Ingreso de fin de año
