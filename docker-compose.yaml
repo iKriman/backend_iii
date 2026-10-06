@@ -1,0 +1,109 @@
+name: banco-xyz-s8
+x-java: &java
+  restart: unless-stopped
+  environment: &java-env
+    JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75.0
+  mem_limit: 768m
+  networks: [bank]
+x-health: &health
+  interval: 10s
+  timeout: 5s
+  retries: 18
+  start_period: 60s
+services:
+  config-server:
+    <<: *java
+    build: {context: ., args: {MODULE: config-server}}
+    image: banco-xyz/config-server:s8
+    environment:
+      <<: *java-env
+      SPRING_CLOUD_CONFIG_SERVER_NATIVE_SEARCH_LOCATIONS: file:/config-repo/
+    volumes: [./config-repo:/config-repo:ro]
+    ports: ["127.0.0.1:8888:8888"]
+    healthcheck:
+      <<: *health
+      test: [CMD, java, -cp, /app, Healthcheck, "8888"]
+  discovery-server:
+    <<: *java
+    build: {context: ., args: {MODULE: discovery-server}}
+    image: banco-xyz/discovery-server:s8
+    ports: ["127.0.0.1:8761:8761"]
+    healthcheck:
+      <<: *health
+      test: [CMD, java, -cp, /app, Healthcheck, "8761"]
+  auth-server:
+    <<: *java
+    build: {context: ., args: {MODULE: auth-server}}
+    image: banco-xyz/auth-server:s8
+    environment:
+      <<: *java-env
+      API_CLIENT_SECRET: ${API_CLIENT_SECRET:?Copiar .env.example a .env}
+      ATM_CLIENT_SECRET: ${ATM_CLIENT_SECRET:?Copiar .env.example a .env}
+      OAUTH_ISSUER: ${OAUTH_ISSUER:-http://localhost:9000}
+    ports: ["127.0.0.1:9000:9000"]
+    healthcheck:
+      <<: *health
+      test: [CMD, java, -cp, /app, Healthcheck, "9000"]
+  artemis:
+    image: apache/activemq-artemis:2.37.0-alpine
+    restart: unless-stopped
+    environment:
+      ARTEMIS_USER: ${ARTEMIS_USER:-bank}
+      ARTEMIS_PASSWORD: ${ARTEMIS_PASSWORD:?Copiar .env.example a .env}
+      ANONYMOUS_LOGIN: "false"
+    volumes: [artemis-data:/var/lib/artemis-instance]
+    networks: [bank]
+    healthcheck:
+      test: [CMD-SHELL, ' /var/lib/artemis-instance/bin/artemis check node --url tcp://localhost:61616 --user "$$ARTEMIS_USER" --password "$$ARTEMIS_PASSWORD"']
+      interval: 10s
+      timeout: 10s
+      retries: 18
+      start_period: 40s
+  bank-account-service:
+    <<: *java
+    build: {context: ., args: {MODULE: bank-account-service}}
+    image: banco-xyz/bank-account-service:s8
+    environment:
+      <<: *java-env
+      CONFIG_SERVER_URL: http://config-server:8888
+      EUREKA_URL: http://discovery-server:8761/eureka/
+      OAUTH_ISSUER: ${OAUTH_ISSUER:-http://localhost:9000}
+      OAUTH_JWKS_URI: http://auth-server:9000/oauth2/jwks
+      JMS_BROKER_URL: tcp://artemis:61616?connectionTTL=60000&clientFailureCheckPeriod=30000&callTimeout=5000&initialConnectAttempts=3&reconnectAttempts=3
+      ARTEMIS_USER: ${ARTEMIS_USER:-bank}
+      ARTEMIS_PASSWORD: ${ARTEMIS_PASSWORD:?Copiar .env.example a .env}
+      FORCE_LEGACY_AUDIT_FAILURE: ${FORCE_LEGACY_AUDIT_FAILURE:-false}
+    ports: ["127.0.0.1:8081:8081"]
+    depends_on:
+      config-server: {condition: service_healthy}
+      discovery-server: {condition: service_healthy}
+      auth-server: {condition: service_healthy}
+      artemis: {condition: service_healthy}
+    healthcheck:
+      <<: *health
+      test: [CMD, java, -cp, /app, Healthcheck, "8081"]
+  notification-service:
+    <<: *java
+    build: {context: ., args: {MODULE: notification-service}}
+    image: banco-xyz/notification-service:s8
+    environment:
+      <<: *java-env
+      EUREKA_URL: http://discovery-server:8761/eureka/
+      OAUTH_ISSUER: ${OAUTH_ISSUER:-http://localhost:9000}
+      OAUTH_JWKS_URI: http://auth-server:9000/oauth2/jwks
+      JMS_BROKER_URL: tcp://artemis:61616?connectionTTL=60000&clientFailureCheckPeriod=30000&callTimeout=5000&initialConnectAttempts=3&reconnectAttempts=3
+      ARTEMIS_USER: ${ARTEMIS_USER:-bank}
+      ARTEMIS_PASSWORD: ${ARTEMIS_PASSWORD:?Copiar .env.example a .env}
+    ports: ["127.0.0.1:8082:8082"]
+    depends_on:
+      discovery-server: {condition: service_healthy}
+      auth-server: {condition: service_healthy}
+      artemis: {condition: service_healthy}
+    healthcheck:
+      <<: *health
+      test: [CMD, java, -cp, /app, Healthcheck, "8082"]
+volumes:
+  artemis-data:
+networks:
+  bank:
+    driver: bridge
